@@ -171,6 +171,11 @@ describe('Event responder: Press', () => {
     });
 
     describe('delayPressStart', () => {
+      let delayPressStartCallback;
+      beforeEach(() => {
+        delayPressStartCallback = jest.fn();
+      });
+
       it('can be configured', () => {
         const element = (
           <Press delayPressStart={2000} onPressStart={onPressStart}>
@@ -180,6 +185,25 @@ describe('Event responder: Press', () => {
         ReactDOM.render(element, container);
 
         ref.current.dispatchEvent(createEvent('pointerdown'));
+        jest.advanceTimersByTime(1999);
+        expect(onPressStart).not.toBeCalled();
+        jest.advanceTimersByTime(1);
+        expect(onPressStart).toHaveBeenCalledTimes(1);
+      });
+
+      it('can be configured as a callback', () => {
+        delayPressStartCallback.mockReturnValue(2000);
+        const element = (
+          <Press delayPressStart={delayPressStartCallback} onPressStart={onPressStart}>
+            <div ref={ref} />
+          </Press>
+        );
+        ReactDOM.render(element, container);
+
+        const event = createEvent('pointerdown');
+        event.pointerType = 'mouse';
+        ref.current.dispatchEvent(event);
+        expect(delayPressStartCallback).toBeCalledWith({ pointerType: 'mouse' });
         jest.advanceTimersByTime(1999);
         expect(onPressStart).not.toBeCalled();
         jest.advanceTimersByTime(1);

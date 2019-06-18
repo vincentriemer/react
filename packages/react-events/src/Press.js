@@ -18,9 +18,9 @@ import {DiscreteEvent, UserBlockingEvent} from 'shared/ReactTypes';
 
 type PressProps = {
   disabled: boolean,
-  delayLongPress: number,
-  delayPressEnd: number,
-  delayPressStart: number,
+  delayLongPress: DelayProp,
+  delayPressEnd: DelayProp,
+  delayPressStart: DelayProp,
   onContextMenu: (e: PressEvent) => void,
   onLongPress: (e: PressEvent) => void,
   onLongPressChange: boolean => void,
@@ -39,6 +39,10 @@ type PressProps = {
   preventDefault: boolean,
   stopPropagation: boolean,
 };
+
+type DelayCallbackData = $ReadOnly<{pointerType: PointerType}>;
+type DelayCallback = DelayCallbackData => number;
+type DelayProp = number | DelayCallback;
 
 type PointerType = '' | 'mouse' | 'keyboard' | 'pen' | 'touch';
 
@@ -107,9 +111,9 @@ const isMac =
   typeof window !== 'undefined' && window.navigator != null
     ? /^Mac/.test(window.navigator.platform)
     : false;
-const DEFAULT_PRESS_END_DELAY_MS = 0;
-const DEFAULT_PRESS_START_DELAY_MS = 0;
-const DEFAULT_LONG_PRESS_DELAY_MS = 500;
+const DEFAULT_PRESS_END_DELAY_MS = () => 0;
+const DEFAULT_PRESS_START_DELAY_MS = () => 0;
+const DEFAULT_LONG_PRESS_DELAY_MS = () => 500;
 const DEFAULT_PRESS_RETENTION_OFFSET = {
   bottom: 20,
   top: 20,
@@ -326,8 +330,9 @@ function dispatchPressStartEvents(
     ) {
       const delayLongPress = calculateDelayMS(
         props.delayLongPress,
-        10,
+        state,
         DEFAULT_LONG_PRESS_DELAY_MS,
+        10,
       );
       state.longPressTimeout = context.setTimeout(() => {
         state.isLongPressed = true;
@@ -352,8 +357,9 @@ function dispatchPressStartEvents(
   if (!state.isActivePressStart) {
     const delayPressStart = calculateDelayMS(
       props.delayPressStart,
-      0,
+      state,
       DEFAULT_PRESS_START_DELAY_MS,
+      0,
     );
     if (delayPressStart > 0) {
       state.pressStartTimeout = context.setTimeout(() => {
@@ -397,11 +403,12 @@ function dispatchPressEndEvents(
   if (state.isActivePressed) {
     const delayPressEnd = calculateDelayMS(
       props.delayPressEnd,
+      state,
+      DEFAULT_PRESS_END_DELAY_MS,
       // if activation and deactivation occur during the same event there's no
       // time for visual user feedback therefore a small delay is added before
       // deactivating.
       activationWasForced ? 10 : 0,
-      DEFAULT_PRESS_END_DELAY_MS,
     );
     if (delayPressEnd > 0) {
       state.pressEndTimeout = context.setTimeout(() => {
@@ -440,9 +447,18 @@ function isValidKeyboardEvent(nativeEvent: Object): boolean {
   );
 }
 
-function calculateDelayMS(delay: ?number, min = 0, fallback = 0) {
-  const maybeNumber = delay == null ? null : delay;
-  return Math.max(min, maybeNumber != null ? maybeNumber : fallback);
+function calculateDelayMS(
+  propValue: DelayProp,
+  state: PressState,
+  defaultValue: DelayCallback,
+  min = 0,
+): number {
+  const callbackData = {pointerType: state.pointerType};
+  if (typeof propValue === 'function') {
+    return propValue(callbackData);
+  }
+  const delay = propValue != null ? propValue : defaultValue(callbackData);
+  return Math.max(min, delay);
 }
 
 // TODO: account for touch hit slop

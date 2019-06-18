@@ -48,20 +48,26 @@ type PressOffset = {
   bottom?: number,
   right?: number
 };
+
+type PressDelayCallbackData = {
+  pointerType: 'mouse' | 'touch' | 'pen' | 'keyboard'
+}
+
+type PressDelay = number | (data: PressDelayCallbackData) => number
 ```
 
 ## Props
 
-### delayLongPress: number = 500ms
+### delayLongPress: PressDelay = 500ms
 
 The duration of a press before `onLongPress` and `onLongPressChange` are called.
 
-### delayPressEnd: number
+### delayPressEnd: PressDelay
 
 The duration of the delay between when the press ends and when `onPressEnd` is
 called.
 
-### delayPressStart: number
+### delayPressStart: PressDelay
 
 The duration of a delay between when the press starts and when `onPressStart` is
 called. This delay is cut short (and `onPressStart` is called) if the press is
