@@ -20,6 +20,7 @@ let act;
 describe('ReactFresh', () => {
   let container;
   let lastRoot;
+  let findHostInstancesForHotUpdate;
   let scheduleHotUpdate;
 
   beforeEach(() => {
@@ -27,6 +28,7 @@ describe('ReactFresh', () => {
       supportsFiber: true,
       inject: injected => {
         scheduleHotUpdate = injected.scheduleHotUpdate;
+        findHostInstancesForHotUpdate = injected.findHostInstancesForHotUpdate;
       },
       onCommitFiberRoot: (id, root) => {
         lastRoot = root;
@@ -37,7 +39,7 @@ describe('ReactFresh', () => {
     jest.resetModules();
     React = require('react');
     ReactDOM = require('react-dom');
-    ReactFreshRuntime = require('react-fresh/runtime');
+    ReactFreshRuntime = require('react-refresh/runtime');
     Scheduler = require('scheduler');
     act = require('react-dom/test-utils').act;
     container = document.createElement('div');
@@ -2934,4 +2936,112 @@ describe('ReactFresh', () => {
       expect(finalEl.textContent).toBe('1');
     }
   });
+
+  it('can find host instances for a family', () => {
+    if (__DEV__) {
+      render(() => {
+        function Child({children}) {
+          return <div className="Child">{children}</div>;
+        }
+        __register__(Child, 'Child');
+
+        function Parent({children}) {
+          return (
+            <div className="Parent">
+              <div>
+                <Child />
+              </div>
+              <div>
+                <Child />
+              </div>
+            </div>
+          );
+        }
+        __register__(Parent, 'Parent');
+
+        function App() {
+          return (
+            <div className="App">
+              <Parent />
+              <Cls>
+                <Parent />
+              </Cls>
+              <Indirection>
+                <Empty />
+              </Indirection>
+            </div>
+          );
+        }
+        __register__(App, 'App');
+
+        class Cls extends React.Component {
+          render() {
+            return this.props.children;
+          }
+        }
+
+        function Indirection({children}) {
+          return children;
+        }
+
+        function Empty() {
+          return null;
+        }
+        __register__(Empty, 'Empty');
+
+        function Frag() {
+          return (
+            <React.Fragment>
+              <div className="Frag">
+                <div />
+              </div>
+              <div className="Frag">
+                <div />
+              </div>
+            </React.Fragment>
+          );
+        }
+        __register__(Frag, 'Frag');
+
+        return App;
+      });
+
+      const parentFamily = ReactFreshRuntime.getFamilyByID('Parent');
+      const childFamily = ReactFreshRuntime.getFamilyByID('Child');
+      const emptyFamily = ReactFreshRuntime.getFamilyByID('Empty');
+
+      testFindHostInstancesForFamilies(
+        [parentFamily],
+        container.querySelectorAll('.Parent'),
+      );
+
+      testFindHostInstancesForFamilies(
+        [childFamily],
+        container.querySelectorAll('.Child'),
+      );
+
+      // When searching for both Parent and Child,
+      // we'll stop visual highlighting at the Parent.
+      testFindHostInstancesForFamilies(
+        [parentFamily, childFamily],
+        container.querySelectorAll('.Parent'),
+      );
+
+      // When we can't find host nodes, use the closest parent.
+      testFindHostInstancesForFamilies(
+        [emptyFamily],
+        container.querySelectorAll('.App'),
+      );
+    }
+  });
+
+  function testFindHostInstancesForFamilies(families, expectedNodes) {
+    const foundInstances = Array.from(
+      findHostInstancesForHotUpdate(lastRoot, families),
+    );
+    expect(foundInstances.length).toEqual(expectedNodes.length);
+    foundInstances.forEach((node, i) => {
+      expect(node).toBe(expectedNodes[i]);
+    });
+  }
 });
